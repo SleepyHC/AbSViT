@@ -150,7 +150,8 @@ class VisionTransformer(nn.Module):
 
         self.cls_token = nn.Parameter(torch.zeros(1, 1, embed_dim)) if class_token else None
         embed_len = num_patches if no_embed_class else num_patches + self.num_prefix_tokens
-        self.pos_embed = nn.Parameter(torch.randn(1, embed_len, embed_dim) * .02)
+        # self.pos_embed = nn.Parameter(torch.randn(1, embed_len, embed_dim) * .02)
+        self.pos_embed=nn.Conv2d(512,512,(1,1))
         self.pos_drop = nn.Dropout(p=drop_rate)
 
         dpr = [x.item() for x in torch.linspace(0, drop_path_rate, depth)]  # stochastic depth decay rule
@@ -174,7 +175,7 @@ class VisionTransformer(nn.Module):
     def init_weights(self, mode=''):
         assert mode in ('jax', 'jax_nlhb', 'moco', '')
         head_bias = -math.log(self.num_classes) if 'nlhb' in mode else 0.
-        trunc_normal_(self.pos_embed, std=.02)
+        # trunc_normal_(self.pos_embed, std=.02)
         if self.cls_token is not None:
             nn.init.normal_(self.cls_token, std=1e-6)
         named_apply(init_weights_vit_timm, self)
@@ -201,11 +202,13 @@ class VisionTransformer(nn.Module):
             self.global_pool = global_pool
         self.head = nn.Linear(self.embed_dim, num_classes) if num_classes > 0 else nn.Identity()
 
-    def _pos_embed(self, x):
+    def _pos_embed(self, x, td=None):
+        if td==None:
+            td=torch.randn(x.shape)
         if self.no_embed_class:
             # deit-3, updated JAX (big vision)
             # position embedding does not overlap with class token, add then concat
-            x = x + self.pos_embed
+            x = x + self.pos_embed(td) * .02
             if self.cls_token is not None:
                 x = torch.cat((self.cls_token.expand(x.shape[0], -1, -1), x), dim=1)
         else:
@@ -213,12 +216,12 @@ class VisionTransformer(nn.Module):
             # pos_embed has entry for class token, concat then add
             if self.cls_token is not None:
                 x = torch.cat((self.cls_token.expand(x.shape[0], -1, -1), x), dim=1)
-            x = x + self.pos_embed
+            x = x + self.pos_embed(td) * .02
         return self.pos_drop(x)
 
     def forward_features(self, x, td=None):
         x = self.patch_embed(x)
-        x = self._pos_embed(x)
+        x = self._pos_embed(x,td[0])
         in_var = []
         out_var = []
         for i, blk in enumerate(self.blocks):
@@ -277,7 +280,11 @@ class VisionTransformer(nn.Module):
 
 def init_weights_vit_timm(module: nn.Module, name: str = ''):
     """ ViT weight initialization, original timm impl (for reproducibility) """
-    if isinstance(module, nn.Linear):
+    if isinstance(module, nn.Conv2d):  #也可以使用torch.nn.init.  https://www.cnblogs.com/jfdwd/p/11269622.html
+        n = module.kernel_size[0] * module.kernel_size[1] * module.out_channels
+        module.weight.data.normal_(0, math.sqrt(2. / n)) #mean, std  从方差一致性出发 
+        #leakyrelu的初始化 0均值的正态分布改为  std = sqrt(2/(1+a^2)*fan_in)
+    elif isinstance(module, nn.Linear):
         trunc_normal_(module.weight, std=.02)
         if module.bias is not None:
             nn.init.zeros_(module.bias)
