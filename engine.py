@@ -67,7 +67,7 @@ def train_one_epoch(args, model: torch.nn.Module, criterion: DistillationLoss,
                     data_loader: Iterable, optimizer: torch.optim.Optimizer,
                     device: torch.device, epoch: int, loss_scaler, max_norm: float = 0,
                     model_ema: Optional[ModelEma] = None, mixup_fn: Optional[Mixup] = None,
-                    set_training_mode=True):
+                    set_training_mode=True,adv='PGD'):
     model.train(set_training_mode)
     metric_logger = utils.MetricLogger(delimiter="  ")
     metric_logger.add_meter('lr', utils.SmoothedValue(window_size=1, fmt='{value:.6f}'))
@@ -76,8 +76,16 @@ def train_one_epoch(args, model: torch.nn.Module, criterion: DistillationLoss,
 
     std_imagenet = torch.tensor((0.229, 0.224, 0.225)).view(3,1,1).to(device)
     mu_imagenet = torch.tensor((0.485, 0.456, 0.406)).view(3,1,1).to(device)
-    upper_limit = ((1 - mu_imagenet)/ std_imagenet)
-    lower_limit = ((0 - mu_imagenet)/ std_imagenet)
+    cifar10_mean = torch.tensor((0.4914, 0.4822, 0.4465)).view(3,1,1).to(device)
+    cifar10_std = torch.tensor((0.2470, 0.2435, 0.2616)).view(3,1,1).to(device)
+    if args.data_set == 'CIFAR':
+        mu=cifar10_mean
+        std=cifar10_std
+    else:
+        mu=mu_imagenet
+        std=std_imagenet
+    upper_limit = ((1 - mu)/ std)
+    lower_limit = ((0 - mu)/ std)
 
     i = 0
     for samples, targets in metric_logger.log_every(data_loader, print_freq, header):
@@ -87,7 +95,26 @@ def train_one_epoch(args, model: torch.nn.Module, criterion: DistillationLoss,
 
         samples = samples.to(device, non_blocking=True)
         targets = targets.to(device, non_blocking=True)
-
+        if adv == 'FGSM':
+            # std_imagenet = torch.tensor((0.229, 0.224, 0.225)).view(3,1,1).cuda()
+            # mu_imagenet = torch.tensor((0.485, 0.456, 0.406)).view(3,1,1).cuda()
+            mu_imagenet = torch.tensor((0.4914, 0.4822, 0.4465)).view(3,1,1).to(device)
+            std_imagenet = torch.tensor((0.2470, 0.2435, 0.2616)).view(3,1,1).to(device)
+            attack_epsilon = (8 / 255.) / std_imagenet
+            attack_alpha = (10 / 255.) / std_imagenet
+            upper_limit = ((1 - mu_imagenet)/ std_imagenet)
+            lower_limit = ((0 - mu_imagenet)/ std_imagenet)
+            samples = PGDAttack(samples, targets, model, attack_epsilon, attack_alpha, lower_limit, criterion, upper_limit, max_iters=1, random_init=False)
+        elif adv == "PGD":
+            # std_imagenet = torch.tensor((0.229, 0.224, 0.225)).view(3,1,1).cuda()
+            # mu_imagenet = torch.tensor((0.485, 0.456, 0.406)).view(3,1,1).cuda()
+            mu_imagenet = torch.tensor((0.4914, 0.4822, 0.4465)).view(3,1,1).to(device)
+            std_imagenet = torch.tensor((0.2470, 0.2435, 0.2616)).view(3,1,1).to(device)
+            attack_epsilon = (8 / 255.) / std_imagenet
+            attack_alpha = (2 / 255.) / std_imagenet
+            upper_limit = ((1 - mu_imagenet)/ std_imagenet)
+            lower_limit = ((0 - mu_imagenet)/ std_imagenet)
+            samples = PGDAttack(samples, targets, model, attack_epsilon, attack_alpha, lower_limit, criterion, upper_limit, max_iters=10, random_init=True)
         if mixup_fn is not None:
             samples, targets = mixup_fn(samples, targets)
 
@@ -163,21 +190,25 @@ def evaluate(data_loader, model, device, mask=None, adv=None):
         target = target.to(device, non_blocking=True)
 
         if adv == 'FGSM':
-            std_imagenet = torch.tensor((0.229, 0.224, 0.225)).view(3,1,1).cuda()
-            mu_imagenet = torch.tensor((0.485, 0.456, 0.406)).view(3,1,1).cuda()
-            attack_epsilon = (1 / 255.) / std_imagenet
-            attack_alpha = (1 / 255.) / std_imagenet
+            # std_imagenet = torch.tensor((0.229, 0.224, 0.225)).view(3,1,1).cuda()
+            # mu_imagenet = torch.tensor((0.485, 0.456, 0.406)).view(3,1,1).cuda()
+            mu_imagenet = torch.tensor((0.4914, 0.4822, 0.4465)).view(3,1,1).to(device)
+            std_imagenet = torch.tensor((0.2470, 0.2435, 0.2616)).view(3,1,1).to(device)
+            attack_epsilon = (8 / 255.) / std_imagenet
+            attack_alpha = (10 / 255.) / std_imagenet
             upper_limit = ((1 - mu_imagenet)/ std_imagenet)
             lower_limit = ((0 - mu_imagenet)/ std_imagenet)
             adv_input = PGDAttack(images, target, model, attack_epsilon, attack_alpha, lower_limit, criterion, upper_limit, max_iters=1, random_init=False)
         elif adv == "PGD":
-            std_imagenet = torch.tensor((0.229, 0.224, 0.225)).view(3,1,1).cuda()
-            mu_imagenet = torch.tensor((0.485, 0.456, 0.406)).view(3,1,1).cuda()
-            attack_epsilon = (1 / 255.) / std_imagenet
-            attack_alpha = (0.5 / 255.) / std_imagenet
+            # std_imagenet = torch.tensor((0.229, 0.224, 0.225)).view(3,1,1).cuda()
+            # mu_imagenet = torch.tensor((0.485, 0.456, 0.406)).view(3,1,1).cuda()
+            mu_imagenet = torch.tensor((0.4914, 0.4822, 0.4465)).view(3,1,1).to(device)
+            std_imagenet = torch.tensor((0.2470, 0.2435, 0.2616)).view(3,1,1).to(device)
+            attack_epsilon = (8 / 255.) / std_imagenet
+            attack_alpha = (2 / 255.) / std_imagenet
             upper_limit = ((1 - mu_imagenet)/ std_imagenet)
             lower_limit = ((0 - mu_imagenet)/ std_imagenet)
-            adv_input = PGDAttack(images, target, model, attack_epsilon, attack_alpha, lower_limit, criterion, upper_limit, max_iters=5, random_init=True)
+            adv_input = PGDAttack(images, target, model, attack_epsilon, attack_alpha, lower_limit, criterion, upper_limit, max_iters=20, random_init=True)
 
         # compute output
         with torch.cuda.amp.autocast():

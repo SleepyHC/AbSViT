@@ -190,7 +190,9 @@ def get_args_parser():
     parser.add_argument('--dist_url', default='env://', help='url used to set up distributed training')
 
     parser.add_argument("--var_loss", default=0.1, type=float)
-    parser.add_argument("--test_every", default=1, type=int)
+    parser.add_argument("--test_every", default=5, type=int)
+
+    parser.add_argument("--train_adv",default='PGD',choices=['PGD','FGSM','None'],type=str)
     return parser
 
 def setup_for_distributed(is_master):
@@ -503,11 +505,15 @@ def main(args):
 
         if args.fgsm_test:
             test_stats = evaluate(data_loader_val, model, device, adv='FGSM')
-            print(f"Accuracy of the FGSM: {test_stats['acc1']:.1f}%")
+            print(f"Robust Accuracy of the FGSM: {test_stats['acc1']:.1f}%")
+            test_stats = evaluate(data_loader_val, model, device)
+            print(f"Clean Accuracy of the FGSM: {test_stats['acc1']:.1f}%")
 
         if args.pgd_test:
             test_stats = evaluate(data_loader_val, model, device, adv='PGD')
             print(f"Accuracy of the PGD: {test_stats['acc1']:.1f}%")
+            test_stats = evaluate(data_loader_val, model, device)
+            print(f"Clean Accuracy of the FGSM: {test_stats['acc1']:.1f}%")
 
         return
 
@@ -522,7 +528,8 @@ def main(args):
             args, model, criterion, data_loader_train,
             optimizer, device, epoch, loss_scaler,
             args.clip_grad, model_ema, mixup_fn,
-            set_training_mode=args.finetune == ''  # keep in eval mode during finetuning
+            set_training_mode=args.finetune == '',  # keep in eval mode during finetuning
+            adv=args.train_adv
         )
 
         lr_scheduler.step(epoch)
@@ -542,7 +549,9 @@ def main(args):
                     }, checkpoint_path)
 
             test_stats = evaluate(data_loader_val, model, device)
-            print(f"Accuracy of the network on the {len(dataset_val)} test images: {test_stats['acc1']:.1f}%")
+            print(f"Clean Accuracy of the network on the {len(dataset_val)} test images: {test_stats['acc1']:.1f}%")
+            test_stats = evaluate(data_loader_val, model, device,adv='PGD')
+            print(f"PGD-20 Accuracy of the network on the {len(dataset_val)} test images: {test_stats['acc1']:.1f}%")
             if test_stats["acc1"] > max_accuracy:
                 checkpoint_paths = [output_dir / 'best_model.pth']
                 for checkpoint_path in checkpoint_paths:
@@ -556,7 +565,7 @@ def main(args):
                         'args': args,
                     }, checkpoint_path)
             max_accuracy = max(max_accuracy, test_stats["acc1"])
-            print(f'Max accuracy: {max_accuracy:.2f}%')
+            print(f'Max robust accuracy: {max_accuracy:.2f}%')
 
             log_stats = {**{f'train_{k}': v for k, v in train_stats.items()},
                          **{f'test_{k}': v for k, v in test_stats.items()},
