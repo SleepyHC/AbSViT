@@ -24,7 +24,7 @@ def clamp(X, lower_limit, upper_limit):
 
 def PGDAttack(x, y, model, attack_epsilon, attack_alpha, lower_limit, loss_fn, upper_limit, max_iters, random_init):
     model.eval()
-
+    loss_fn=nn.CrossEntropyLoss()
     delta = torch.zeros_like(x).cuda()
     if random_init:
         for iiiii in range(len(attack_epsilon)):
@@ -39,7 +39,7 @@ def PGDAttack(x, y, model, attack_epsilon, attack_alpha, lower_limit, loss_fn, u
             
             outputs = model(adv_imgs)
 
-            loss = loss_fn(adv_imgs,outputs, y)
+            loss = loss_fn(outputs, y)
 
             grads = torch.autograd.grad(loss, adv_imgs, grad_outputs=None, 
                     only_inputs=True)[0]

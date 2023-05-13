@@ -151,7 +151,7 @@ class VisionTransformer(nn.Module):
         self.cls_token = nn.Parameter(torch.zeros(1, 1, embed_dim)) if class_token else None
         embed_len = num_patches if no_embed_class else num_patches + self.num_prefix_tokens
         # self.pos_embed = nn.Parameter(torch.randn(1, embed_len, embed_dim) * .02)
-        self.pos_embed=nn.Conv2d(512,512,(1,1))
+        self.pos_embed=nn.Conv2d(128,128,(1,1))
         self.pos_drop = nn.Dropout(p=drop_rate)
 
         dpr = [x.item() for x in torch.linspace(0, drop_path_rate, depth)]  # stochastic depth decay rule
@@ -203,11 +203,11 @@ class VisionTransformer(nn.Module):
         self.head = nn.Linear(self.embed_dim, num_classes) if num_classes > 0 else nn.Identity()
 
     def _pos_embed(self, x, td=None):
-        if td==None:
-            td=torch.randn(x.shape)
         if self.no_embed_class:
             # deit-3, updated JAX (big vision)
             # position embedding does not overlap with class token, add then concat
+            if td==None:
+                td=torch.randn(x.shape).cuda()
             x = x + self.pos_embed(td) * .02
             if self.cls_token is not None:
                 x = torch.cat((self.cls_token.expand(x.shape[0], -1, -1), x), dim=1)
@@ -216,12 +216,14 @@ class VisionTransformer(nn.Module):
             # pos_embed has entry for class token, concat then add
             if self.cls_token is not None:
                 x = torch.cat((self.cls_token.expand(x.shape[0], -1, -1), x), dim=1)
+            if td==None:
+                td=torch.randn(x.shape).cuda()
             x = x + self.pos_embed(td) * .02
         return self.pos_drop(x)
 
     def forward_features(self, x, td=None):
         x = self.patch_embed(x)
-        x = self._pos_embed(x,td[0])
+        x = self._pos_embed(x,td[0] if td is not None else None)
         in_var = []
         out_var = []
         for i, blk in enumerate(self.blocks):
