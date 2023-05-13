@@ -36,12 +36,12 @@ warnings.filterwarnings("ignore")
 def get_args_parser():
     parser = argparse.ArgumentParser('RVT training and evaluation script', add_help=False)
     parser.add_argument('--batch-size', default=128, type=int)
-    parser.add_argument('--epochs', default=300, type=int)
+    parser.add_argument('--epochs', default=40, type=int)
 
     # Model parameters
     parser.add_argument('--model', default='vit_tiny_patch16_224', type=str, metavar='MODEL',
                         help='Name of model to train')
-    parser.add_argument('--input-size', default=224, type=int, help='images input size')
+    parser.add_argument('--input-size', default=32, type=int, help='images input size')
 
     parser.add_argument('--drop', type=float, default=0.0, metavar='PCT',
                         help='Dropout rate (default: 0.)')
@@ -148,9 +148,9 @@ def get_args_parser():
     parser.add_argument('--pretrained', action='store_true', help='load pretrained model')
 
     # Dataset parameters
-    parser.add_argument('--data-path', default='/datasets01/imagenet_full_size/061417/', type=str,
+    parser.add_argument('--data-path', default='/datasets/cifar10/', type=str,
                         help='dataset path')
-    parser.add_argument('--data-set', default='IMNET', choices=['CIFAR', 'IMNET', 'INAT', 'INAT19'],
+    parser.add_argument('--data-set', default='CIFAR', choices=['CIFAR', 'IMNET', 'INAT', 'INAT19'],
                         type=str, help='Image Net dataset path')
     parser.add_argument('--data_type', default='folder', choices=['tar', 'folder'], type=str)
     parser.add_argument('--inat-category', default='name',

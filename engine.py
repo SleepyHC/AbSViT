@@ -39,7 +39,7 @@ def PGDAttack(x, y, model, attack_epsilon, attack_alpha, lower_limit, loss_fn, u
             
             outputs = model(adv_imgs)
 
-            loss = loss_fn(outputs, y)
+            loss = loss_fn(adv_imgs,outputs, y)
 
             grads = torch.autograd.grad(loss, adv_imgs, grad_outputs=None, 
                     only_inputs=True)[0]
