@@ -536,7 +536,7 @@ def main(args):
 
         if (epoch+1) % args.test_every == 0:
             if args.output_dir:
-                checkpoint_paths = [output_dir / 'checkpoint.pth']
+                checkpoint_paths = [output_dir / 'checkpoint{}.pth'.format(epoch)]
                 for checkpoint_path in checkpoint_paths:
                     utils.save_on_master({
                         'model': model_without_ddp.state_dict(),
