@@ -156,6 +156,8 @@ def build_transform(is_train, args):
             re_prob=args.reprob,
             re_mode=args.remode,
             re_count=args.recount,
+            mean=[0.4914, 0.4822, 0.4465],
+            std=[0.2470, 0.2435, 0.2616],
         )
         if not resize_im:
             # replace RandomResizedCropAndInterpolation with

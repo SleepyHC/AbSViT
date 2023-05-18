@@ -50,7 +50,7 @@ def PGDAttack(x, y, model, attack_epsilon, attack_alpha, lower_limit, loss_fn, u
 
             adv_imgs = clamp(adv_imgs, lower_limit, upper_limit)
 
-    return adv_imgs.detach()
+    return adv_imgs.detach()+x
 
 def patch_level_aug(input1, patch_transform, upper_limit, lower_limit):
     bs, channle_size, H, W = input1.shape
